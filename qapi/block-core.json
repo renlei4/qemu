@@ -417,7 +417,7 @@
             '*bps_wr_max_length': 'int', '*iops_max_length': 'int',
             '*iops_rd_max_length': 'int', '*iops_wr_max_length': 'int',
             '*iops_size': 'int', '*group': 'str', 'cache': 'BlockdevCacheInfo',
-            'write_threshold': 'int', '*dirty-bitmaps': ['BlockDirtyInfo'] } }
+            'write_threshold': 'uint64', '*dirty-bitmaps': ['BlockDirtyInfo'] } }
 
 ##
 # @BlockDeviceIoStatus:
