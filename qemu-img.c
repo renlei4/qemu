@@ -3430,7 +3430,7 @@ static int img_rebase(int argc, char **argv)
     BlockDriverState *bs = NULL, *prefix_chain_bs = NULL;
     BlockDriverState *unfiltered_bs;
     char *filename;
-    const char *fmt, *cache, *src_cache, *out_basefmt, *out_baseimg;
+    const char *fmt, *cache, *src_cache, *out_basefmt, *out_baseimg, *snapshot_name = NULL;
     int c, flags, src_flags, ret;
     bool writethrough, src_writethrough;
     int unsafe = 0;
@@ -3439,6 +3439,7 @@ static int img_rebase(int argc, char **argv)
     bool quiet = false;
     Error *local_err = NULL;
     bool image_opts = false;
+    QemuOpts *sn_opts = NULL;
 
     /* Parse commandline parameters */
     fmt = NULL;
@@ -3492,6 +3493,16 @@ static int img_rebase(int argc, char **argv)
             break;
         case 'q':
             quiet = true;
+            break;
+        case 'l':
+            if (strstart(optarg, SNAPSHOT_OPT_BASE, NULL)) {
+                sn_opts = qemu_opts_parse_noisily(&internal_snapshot_opts,
+                                                  optarg, false);
+                if (!sn_opts)
+                    error_exit("Failed in parsing snapshot param '%s'", optarg);
+            } else {
+                snapshot_name = optarg;
+            }
             break;
         case OPTION_OBJECT:
             user_creatable_process_cmdline(optarg);
@@ -3581,6 +3592,27 @@ static int img_rebase(int argc, char **argv)
             }
         } else {
             blk_old_backing = NULL;
+        }
+        
+        if (sn_opts) {
+        bdrv_snapshot_load_tmp(bs->backing->bs,
+                                         qemu_opt_get(sn_opts, SNAPSHOT_OPT_ID),
+                                         qemu_opt_get(sn_opts, SNAPSHOT_OPT_NAME),
+                                         &local_err);
+
+            ret = bdrv_snapshot_load_tmp(blk_bs(blk_old_backing),
+                                         qemu_opt_get(sn_opts, SNAPSHOT_OPT_ID),
+                                         qemu_opt_get(sn_opts, SNAPSHOT_OPT_NAME),
+                                         &local_err);
+        } else if (snapshot_name != NULL) {
+            bdrv_snapshot_load_tmp_by_id_or_name(bs->backing->bs, snapshot_name, &local_err);
+            bdrv_snapshot_load_tmp_by_id_or_name(blk_bs(blk_old_backing), snapshot_name, &local_err);
+        }
+
+        if (local_err) {
+            error_reportf_err(local_err, "Failed to load snapshot: ");
+            ret = -1;
+            goto out;
         }
 
         if (out_baseimg[0]) {
